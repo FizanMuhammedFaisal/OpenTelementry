@@ -11,9 +11,9 @@ A complete, production-ready observability stack for learning OpenTelemetry with
 
 - [What is Observability?](#what-is-observability)
 - [The Three Pillars of Observability](#the-three-pillars-of-observability)
-  - [Traces](#1-traces-🔍)
-  - [Metrics](#2-metrics-📊)
-  - [Logs](#3-logs-📝)
+  - [Traces](#1-traces-)
+  - [Metrics](#2-metrics-)
+  - [Logs](#3-logs-)
 - [Architecture Overview](#architecture-overview)
 - [Quick Start](#quick-start)
 - [How Data Flows](#how-data-flows)
@@ -59,28 +59,18 @@ OpenTelemetry (OTel) is the **industry standard** for collecting observability d
 
 A **trace** represents the complete journey of a request through your system.
 
-```
-User Request
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────┐
-│                        TRACE                                 │
-│                                                              │
-│  ┌──────────────────┐                                       │
-│  │ Span: HTTP GET   │ 150ms                                 │
-│  │ /api/users/123   │                                       │
-│  └────────┬─────────┘                                       │
-│           │                                                  │
-│           ├──► ┌─────────────────┐                          │
-│           │    │ Span: DB Query  │ 45ms                     │
-│           │    │ SELECT * FROM   │                          │
-│           │    └─────────────────┘                          │
-│           │                                                  │
-│           └──► ┌─────────────────┐                          │
-│                │ Span: Cache     │ 2ms                      │
-│                │ redis.get()     │                          │
-│                └─────────────────┘                          │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A[👤 User Request] --> B[HTTP GET /api/users/123<br/>150ms total]
+    B --> C[📊 DB Query<br/>SELECT * FROM users<br/>45ms]
+    B --> D[⚡ Cache Lookup<br/>redis.get<br/>2ms]
+    B --> E[📤 Response Sent]
+
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style D fill:#e8f5e9
+    style E fill:#fce4ec
 ```
 
 **Key Concepts:**
@@ -102,18 +92,15 @@ User Request
 
 **Metrics** are numerical measurements collected over time. They answer: _"How is my system performing right now?"_
 
-```
-┌────────────────────────────────────────────────────────────┐
-│                    METRICS EXAMPLES                        │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  http_requests_total          ████████████████ 1,523       │
-│  http_request_duration_ms     ████████ 45ms (avg)          │
-│  active_connections           ████ 42                      │
-│  memory_usage_bytes           ██████████████ 256MB         │
-│  error_rate                   █ 0.5%                       │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    subgraph Metrics Examples
+        A[http_requests_total] --> A1[📈 1,523 requests]
+        B[http_request_duration] --> B1[⏱️ 45ms avg]
+        C[active_connections] --> C1[🔗 42 connections]
+        D[memory_usage] --> D1[💾 256MB]
+        E[error_rate] --> E1[❌ 0.5%]
+    end
 ```
 
 **Types of Metrics:**
@@ -152,54 +139,41 @@ User Request
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              YOUR APP                                        │
-│                                                                              │
-│   ┌──────────────────────────────────────────────────────────────────────┐  │
-│   │  OpenTelemetry SDK (instrumentation.ts)                              │  │
-│   │                                                                      │  │
-│   │  • Auto-instruments Express, HTTP, etc.                              │  │
-│   │  • Collects traces and metrics                                       │  │
-│   │  • Exports via OTLP to collector                                     │  │
-│   └────────────────────────────────────┬─────────────────────────────────┘  │
-│                                        │                                     │
-│   ┌──────────────────────────────────────────────────────────────────────┐  │
-│   │  Pino Logger (logger.ts)                                             │  │
-│   │                                                                      │  │
-│   │  • Structured JSON logging                                           │  │
-│   │  • Buffers logs, sends to Loki                                       │  │
-│   └────────────────────────────────────┬─────────────────────────────────┘  │
-└────────────────────────────────────────┼─────────────────────────────────────┘
-                                         │
-                     ┌───────────────────┴───────────────────┐
-                     │                                       │
-                     ▼                                       ▼
-         ┌───────────────────────┐               ┌───────────────────────┐
-         │   OTel Collector      │               │        Loki           │
-         │   (Port 4317/4318)    │               │     (Port 3100)       │
-         │                       │               │                       │
-         │   Receives traces     │               │   Stores logs         │
-         │   and metrics         │               │                       │
-         └───────────┬───────────┘               └───────────────────────┘
-                     │                                       │
-         ┌───────────┴───────────┐                          │
-         ▼                       ▼                          │
-┌─────────────────┐   ┌─────────────────┐                   │
-│     Tempo       │   │   Prometheus    │                   │
-│   (Traces)      │   │   (Metrics)     │                   │
-└────────┬────────┘   └────────┬────────┘                   │
-         │                     │                            │
-         └──────────┬──────────┴────────────────────────────┘
-                    │
-                    ▼
-         ┌───────────────────────┐
-         │       Grafana         │
-         │     (Port 3000)       │
-         │                       │
-         │   Visualize all       │
-         │   telemetry data      │
-         └───────────────────────┘
+```mermaid
+flowchart TB
+    subgraph APP["🖥️ YOUR APPLICATION"]
+        SDK["OpenTelemetry SDK<br/>(instrumentation.ts)<br/>• Auto-instruments Express, HTTP<br/>• Collects traces & metrics"]
+        PINO["Pino Logger<br/>(logger.ts)<br/>• Structured JSON logging<br/>• Buffers logs"]
+    end
+
+    subgraph COLLECTORS["📡 COLLECTORS"]
+        OTEL["OTel Collector<br/>:4317 / :4318"]
+        LOKI_IN["Loki<br/>:3100"]
+    end
+
+    subgraph STORAGE["💾 STORAGE BACKENDS"]
+        TEMPO["Tempo<br/>(Traces)"]
+        PROM["Prometheus<br/>(Metrics)"]
+        LOKI["Loki<br/>(Logs)"]
+    end
+
+    subgraph VIZ["📊 VISUALIZATION"]
+        GRAFANA["Grafana<br/>:3000"]
+    end
+
+    SDK -->|OTLP| OTEL
+    PINO -->|HTTP Push| LOKI_IN
+    OTEL -->|gRPC| TEMPO
+    OTEL -->|Remote Write| PROM
+    LOKI_IN --> LOKI
+    TEMPO --> GRAFANA
+    PROM --> GRAFANA
+    LOKI --> GRAFANA
+
+    style APP fill:#e3f2fd
+    style COLLECTORS fill:#fff8e1
+    style STORAGE fill:#f3e5f5
+    style VIZ fill:#e8f5e9
 ```
 
 ---
@@ -254,58 +228,41 @@ Open [http://localhost:3000](http://localhost:3000) and explore:
 
 The journey from your code to storage:
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                                YOUR CODE                                    │
-│                                                                             │
-│  // Auto-instrumentation wraps Express                                     │
-│  app.get("/rolldice", (req, res) => {        ◄── Span automatically        │
-│      const result = Math.random();                created here!            │
-│      res.json({ result });                                                 │
-│  });                                                                       │
-└────────────────────────────────────────┬───────────────────────────────────┘
-                                         │
-                                         │ 1. Span data collected
-                                         │
-                                         ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                        OPENTELEMETRY SDK                                    │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                         BATCH PROCESSOR                              │   │
-│  │                                                                      │   │
-│  │   Span1  Span2  Span3  Span4  Span5  ... (waits for batch/timeout)  │   │
-│  └────────────────────────────────────┬────────────────────────────────┘   │
-│                                       │                                     │
-│                                       │ 2. Batch ready (1s timeout or 512 spans)
-│                                       ▼                                     │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                       OTLP HTTP EXPORTER                             │   │
-│  │                                                                      │   │
-│  │   POST http://localhost:4318/v1/traces  ──────────────────────────►  │   │
-│  │   POST http://localhost:4318/v1/metrics ──────────────────────────►  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                                         │ 3. HTTP POST (OTLP protocol)
-                                         ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                          OTEL COLLECTOR                                     │
-│                                                                             │
-│   RECEIVER          PROCESSOR           EXPORTER                            │
-│  ┌──────────┐      ┌──────────┐       ┌────────────────────────────────┐   │
-│  │ OTLP     │  ──► │ Batch    │  ──►  │ • otlp/tempo → tempo:4317     │   │
-│  │ :4318    │      │ Resource │       │ • prometheusremotewrite       │   │
-│  └──────────┘      └──────────┘       └────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                    ┌────────────────────┴────────────────────┐
-                    ▼                                         ▼
-            ┌──────────────┐                         ┌──────────────┐
-            │    TEMPO     │                         │  PROMETHEUS  │
-            │  Stores      │                         │  Stores      │
-            │  traces      │                         │  metrics     │
-            └──────────────┘                         └──────────────┘
+```mermaid
+flowchart TB
+    subgraph CODE["1️⃣ YOUR CODE"]
+        EXPRESS["app.get('/rolldice', ...)<br/>↓<br/>Auto-instrumentation creates Span"]
+    end
+
+    subgraph SDK["2️⃣ OPENTELEMETRY SDK"]
+        BATCH["Batch Processor<br/>Collects spans (1s timeout or 512 items)"]
+        EXPORTER["OTLP HTTP Exporter<br/>POST /v1/traces<br/>POST /v1/metrics"]
+    end
+
+    subgraph COLLECTOR["3️⃣ OTEL COLLECTOR"]
+        RECV["Receiver<br/>OTLP :4318"]
+        PROC["Processor<br/>Batch + Resource"]
+        EXP["Exporters<br/>→ Tempo<br/>→ Prometheus"]
+    end
+
+    subgraph BACKENDS["4️⃣ STORAGE"]
+        TEMPO["Tempo<br/>Stores traces"]
+        PROM["Prometheus<br/>Stores metrics"]
+    end
+
+    CODE --> SDK
+    EXPRESS --> BATCH
+    BATCH --> EXPORTER
+    EXPORTER -->|HTTP POST| RECV
+    RECV --> PROC
+    PROC --> EXP
+    EXP --> TEMPO
+    EXP --> PROM
+
+    style CODE fill:#e3f2fd
+    style SDK fill:#fff3e0
+    style COLLECTOR fill:#f3e5f5
+    style BACKENDS fill:#e8f5e9
 ```
 
 > 📖 _"The Collector receives telemetry data, processes it, and exports it to the configured backend(s)."_
@@ -317,55 +274,34 @@ The journey from your code to storage:
 
 Logs take a different path using **pino-loki**:
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                                YOUR CODE                                    │
-│                                                                             │
-│   logger.info({ dice: 5 }, "Dice rolled");                                 │
-│                        │                                                    │
-│                        │ 1. Create log record                              │
-│                        ▼                                                    │
-│   ┌────────────────────────────────────────────────────────────────────┐   │
-│   │                         PINO CORE                                   │   │
-│   │                                                                     │   │
-│   │   Serializes to JSON:                                               │   │
-│   │   {"level":30,"time":1705506600000,"dice":5,"msg":"Dice rolled"}   │   │
-│   └───────────────────────────────────┬─────────────────────────────────┘   │
-│                                       │                                     │
-│                                       │ 2. Write to transport streams       │
-│                                       ▼                                     │
-│   ┌────────────────────────────────────────────────────────────────────┐   │
-│   │                   PINO-LOKI (Worker Thread)                         │   │
-│   │                                                                     │   │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │   │
-│   │   │                    INTERNAL BUFFER                           │  │   │
-│   │   │                                                              │  │   │
-│   │   │   Log1  Log2  Log3  Log4  ... (max 10,000)                  │  │   │
-│   │   │                                                              │  │   │
-│   │   │   Flushes every 2 seconds (configurable)                    │  │   │
-│   │   └──────────────────────────────┬──────────────────────────────┘  │   │
-│   │                                  │                                  │   │
-│   │                                  │ 3. Batch ready                   │   │
-│   │                                  ▼                                  │   │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │   │
-│   │   │              HTTP POST to Loki                               │  │   │
-│   │   │              POST http://localhost:3100/loki/api/v1/push    │  │   │
-│   │   └─────────────────────────────────────────────────────────────┘  │   │
-│   └────────────────────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                                         │ 4. HTTP POST (Loki Push API)
-                                         ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│                                  LOKI                                       │
-│                                                                             │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────────┐   │
-│   │ DISTRIBUTOR │ ─► │  INGESTER   │ ─► │         STORAGE             │   │
-│   │             │    │             │    │                             │   │
-│   │ Validates   │    │ Compresses  │    │  /tmp/loki/chunks/          │   │
-│   │ request     │    │ chunks data │    │  /tmp/loki/index/           │   │
-│   └─────────────┘    └─────────────┘    └─────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CODE["1️⃣ YOUR CODE"]
+        LOG["logger.info({ dice: 5 }, 'Dice rolled')"]
+    end
+
+    subgraph PINO["2️⃣ PINO LOGGER"]
+        SERIAL["Serialize to JSON<br/>{level:30, time:..., dice:5, msg:'...'}"]
+        WORKER["pino-loki Worker Thread"]
+        BUFFER["Internal Buffer<br/>Max 10,000 logs<br/>Flushes every 2s"]
+    end
+
+    subgraph LOKI["3️⃣ LOKI"]
+        DIST["Distributor<br/>Validates request"]
+        ING["Ingester<br/>Compresses chunks"]
+        STORE["Storage<br/>/tmp/loki/chunks/"]
+    end
+
+    LOG --> SERIAL
+    SERIAL --> WORKER
+    WORKER --> BUFFER
+    BUFFER -->|HTTP POST<br/>/loki/api/v1/push| DIST
+    DIST --> ING
+    ING --> STORE
+
+    style CODE fill:#e3f2fd
+    style PINO fill:#fff3e0
+    style LOKI fill:#e8f5e9
 ```
 
 ---
@@ -406,6 +342,28 @@ services:
 
 📂 [View File](./observability/otel-collector.yaml)
 
+```mermaid
+flowchart LR
+    subgraph Receiver
+        OTLP["otlp<br/>:4317/:4318"]
+    end
+
+    subgraph Processor
+        BATCH["batch"]
+        RES["resource"]
+    end
+
+    subgraph Exporter
+        TEMPO["otlp/tempo"]
+        PROM["prometheusremotewrite"]
+        DEBUG["debug"]
+    end
+
+    OTLP --> BATCH --> RES --> TEMPO
+    RES --> PROM
+    RES --> DEBUG
+```
+
 The collector has three main sections:
 
 ```yaml
@@ -414,20 +372,20 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317 # Listen on all interfaces
+        endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
 
 # PROCESSORS - Transform data in the middle
 processors:
   batch:
-    timeout: 1s # Send after 1 second
-    send_batch_size: 1024 # Or after 1024 items
+    timeout: 1s
+    send_batch_size: 1024
 
 # EXPORTERS - Where data goes OUT
 exporters:
   otlp/tempo:
-    endpoint: tempo:4317 # Send traces to Tempo
+    endpoint: tempo:4317
 
 # SERVICE - Wire everything together
 service:
@@ -535,6 +493,20 @@ scrape_configs:
 
 📂 [View File](./observability/grafana-datasources.yaml)
 
+```mermaid
+flowchart LR
+    GRAFANA[Grafana :3000]
+    TEMPO[Tempo :3200]
+    LOKI[Loki :3100]
+    PROM[Prometheus :9090]
+
+    GRAFANA --> TEMPO
+    GRAFANA --> LOKI
+    GRAFANA --> PROM
+
+    TEMPO -.->|tracesToLogs| LOKI
+```
+
 ```yaml
 apiVersion: 1
 
@@ -603,15 +575,15 @@ loki.process "add_labels" {
 
 ## Key Concepts
 
-| Concept                 | Description                                            | Documentation                                                                 |
-| ----------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| **OTLP**                | OpenTelemetry Protocol - standard format for telemetry | [OTLP Specification](https://opentelemetry.io/docs/specs/otlp/)               |
-| **gRPC**                | Binary protocol, faster than HTTP                      | [gRPC](https://grpc.io/)                                                      |
-| **Context Propagation** | Passing trace IDs across services                      | [Context](https://opentelemetry.io/docs/concepts/context-propagation/)        |
-| **Instrumentation**     | Adding observability to your code                      | [Instrumentation](https://opentelemetry.io/docs/concepts/instrumentation/)    |
-| **Exporter**            | Sends telemetry to backends                            | [Exporters](https://opentelemetry.io/docs/concepts/components/#exporters)     |
-| **Receiver**            | Accepts incoming telemetry                             | [Receivers](https://opentelemetry.io/docs/collector/configuration/#receivers) |
-| **Pipeline**            | Receiver → Processor → Exporter chain                  | [Pipelines](https://opentelemetry.io/docs/collector/configuration/#service)   |
+| Concept                 | Description                              | Documentation                                                                 |
+| ----------------------- | ---------------------------------------- | ----------------------------------------------------------------------------- |
+| **OTLP**                | OpenTelemetry Protocol - standard format | [OTLP Specification](https://opentelemetry.io/docs/specs/otlp/)               |
+| **gRPC**                | Binary protocol, faster than HTTP        | [gRPC](https://grpc.io/)                                                      |
+| **Context Propagation** | Passing trace IDs across services        | [Context](https://opentelemetry.io/docs/concepts/context-propagation/)        |
+| **Instrumentation**     | Adding observability to your code        | [Instrumentation](https://opentelemetry.io/docs/concepts/instrumentation/)    |
+| **Exporter**            | Sends telemetry to backends              | [Exporters](https://opentelemetry.io/docs/concepts/components/#exporters)     |
+| **Receiver**            | Accepts incoming telemetry               | [Receivers](https://opentelemetry.io/docs/collector/configuration/#receivers) |
+| **Pipeline**            | Receiver → Processor → Exporter chain    | [Pipelines](https://opentelemetry.io/docs/collector/configuration/#service)   |
 
 ---
 
