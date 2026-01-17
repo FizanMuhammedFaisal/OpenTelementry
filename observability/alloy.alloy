@@ -1,0 +1,40 @@
+// Grafana Alloy Configuration
+// 
+// Alloy is Grafana's observability agent that collects:
+// - Logs → sends to Loki
+// - Can also collect metrics and traces
+//
+// This config collects logs from the app container and sends to Loki
+
+// ═══════════════════════════════════════════════════════════════
+// LOKI DESTINATION - Where to send logs
+// ═══════════════════════════════════════════════════════════════
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOG COLLECTION - Receive logs via HTTP (push-based)
+// ═══════════════════════════════════════════════════════════════
+loki.source.api "push_receiver" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3500
+  }
+  forward_to = [loki.process.add_labels.receiver]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROCESS - Add labels to logs
+// ═══════════════════════════════════════════════════════════════
+loki.process "add_labels" {
+  forward_to = [loki.write.default.receiver]
+  
+  stage.static_labels {
+    values = {
+      env = "development",
+    }
+  }
+}

@@ -1,0 +1,87 @@
+# OpenTelemetry Collector Configuration
+#
+# This is the CENTRAL HUB for all telemetry:
+# - Receives traces, metrics, logs from your app
+# - Processes/filters data
+# - Exports to backends (Tempo, Loki, Prometheus)
+
+# ═══════════════════════════════════════════════════════════════
+# RECEIVERS - How data comes IN to the collector
+# ═══════════════════════════════════════════════════════════════
+receivers:
+  # OTLP receiver - accepts traces, metrics, logs via OTLP protocol
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+# ═══════════════════════════════════════════════════════════════
+# PROCESSORS - Transform/filter data in the middle
+# ═══════════════════════════════════════════════════════════════
+processors:
+  # Batch data for better performance
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  # Add resource attributes to all telemetry
+  resource:
+    attributes:
+      - key: collector.name
+        value: otel-collector
+        action: insert
+
+# ═══════════════════════════════════════════════════════════════
+# EXPORTERS - Where data goes OUT from the collector
+# ═══════════════════════════════════════════════════════════════
+exporters:
+  # Debug exporter - logs to collector's console (useful for learning!)
+  debug:
+    verbosity: detailed
+
+  # TEMPO - for traces (via OTLP)
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # LOKI - for logs (via OTLP - Loki supports OTLP natively now!)
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+  # PROMETHEUS - for metrics (via remote write)
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+
+# ═══════════════════════════════════════════════════════════════
+# SERVICE - Wire everything together (pipelines)
+# ═══════════════════════════════════════════════════════════════
+service:
+  pipelines:
+    # Traces: App → Collector → Tempo
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlp/tempo, debug]
+
+    # Metrics: App → Collector → Prometheus
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [prometheusremotewrite, debug]
+
+    # Logs: App → Collector → Loki
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlphttp/loki, debug]
+
+  telemetry:
+    logs:
+      level: info
